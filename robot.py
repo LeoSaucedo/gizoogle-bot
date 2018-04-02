@@ -4,6 +4,8 @@ Carlos Saucedo, 2018
 """
 import twitter
 import tweepy
+from tweepy import Stream
+from tweepy.streaming import StreamListener
 from TwitterFollowBot import TwitterBot
 from BeautifulSoup import BeautifulSoup
 import requests
@@ -12,36 +14,21 @@ from time import sleep
 URL = "http://www.gizoogle.net/textilizer.php" #Gizoogle URL
 
 #Twitter API keys
-tokenfile = open("auth_tokens.txt")
-tokens = tokenfile.readlines()
+tokenfile = open("auth_tokens.txt", "r")
+tokens = tokenfile.read().splitlines()
 CONSUMER_KEY = tokens[0]
 CONSUMER_KEY_SECRET = tokens[1]
 ACCESS_KEY = tokens[2]
 ACCESS_KEY_SECRET = tokens[3]
 
-#Other text files
-tweetfile = open("tweets_text.txt")
-tweets = tweetfile.readlines()
-usernamefile = open("tweets_usernames.txt")
-usernames = usernamefile.readlines()
-tweetlog= open("tweetlog.txt")
-
 #Global variables
-currentTweet = "null"
 cleanedTweet = "null"
-isEnabled = True
+tweetText = "null"
 
 #Instantiates tweepy bot
 auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_KEY_SECRET)
 auth.set_access_token(ACCESS_KEY, ACCESS_KEY_SECRET)
 api = tweepy.API(auth, wait_on_rate_limit=True)
-
-"""
-Resets the tweet list.
-"""
-def resetList():
-    tweets = open("tweets_text.txt", "w")
-    usernames = open("tweets_usernames.txt", "w")
 
 """
 Translates given text.
@@ -62,13 +49,15 @@ def cleanUpTweet(text):
     return output
 
 #Actual code
-"""
-while(isEnabled):
-    print("Starting Bot.")
-    for result in api.search(q="@GizoogleBot", count=1):
-        if(currentTweet != result.text):
-            currentTweet = result.text
-            print("tweet author: " + result.author.screen_name)
-            print(translate(cleanUpTweet(currentTweet)))
-        sleep(60)
-"""
+print("starting bot.")
+class listener(StreamListener):
+    def on_status(self, status):#when a new tweet with a matching filter is created
+        cleanedTweet = cleanUpTweet(status.text)
+        if "RT @" not in cleanedTweet:#Check to see if tweet is retweet
+            processedTweet = "@" + status.user.screen_name + ": " + translate(cleanedTweet)
+            api.update_status(processedTweet)
+            return True
+    def on_error(self, status):
+        print status
+twitterStream = Stream(auth, listener())
+twitterStream.filter(track=["@GizoogleBot"])
